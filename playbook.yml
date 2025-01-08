@@ -1,61 +1,39 @@
 ---
-- name: Fetch System Configurations and Installed Software
-  hosts: vm
-  vars_files:
-    - vars.yml
-  tasks:
-    - name: Get Python version
-      shell: python3 --version
-      register: python_version
-
-    - name: Get hostname
-      command: hostname
-      register: server_hostname
-
-    - name: Get IP address of the remote server
-      shell: hostname -I | awk '{print $1}'
-      register: server_ip_address
-
-    - name: Get operating system details
-      command: cat /etc/os-release
-      register: os_details
-
-    - name: Get CPU information
-      shell: lscpu
-      register: cpu_info
-
-    - name: Get memory information
-      shell: free -h
-      register: memory_info
-
-    - name: Get disk usage
-      shell: df -h
+- name: Identify top 5 servers highest disk usage
+  hosts: [Mohan]
+  gather_facts: no      
+  become: yes
+  vars: 
+    ansible_user: mohan
+    ansible_ssh_private_key_file: ~/.ssh/id_rsa
+    ansible_become_password: QWERTY@2002
+  tasks: 
+    - name: Get Disk usage details
+      shell: df -h 
+      #shell: df -h --output=pcent,target | grep -E '(storage|db)' | sort -nr | head -1
       register: disk_usage
+      ignore_errors: yes
 
-    - name: Get list of installed packages
-      shell: dpkg -l
-      register: installed_packages
+    - name: Save disk usage data to a fact
+      set_fact:
+        server_disk_usage: "{{ server_disk_usage | default([]) + [{'server': inventory_hostname,'usage': disk_usage.stdout.strip()}] }}"
 
-    - name: Save results to a file on local server
+    - name: Find top 5 servers by disk usage
+      set_fact:
+        top_5_servers: "{{ (server_disk_usage | sort(attribute='usage', reverse=True))[:5] }}"
+      run_once: true
+
+
+    - name: Save top 5 servers to the log file
       local_action:
-        module: copy
-        content: |
-          Python Version: {{ python_version.stdout }}
-          Hostname: {{ server_hostname.stdout }}
-          IP Address: {{ server_ip_address.stdout }}
-          OS Details: 
-          {{ os_details.stdout }}
-          
-          CPU Information:
-          {{ cpu_info.stdout }}
-          
-          Memory Information:
-          {{ memory_info.stdout }}
-          
-          Disk Usage:
-          {{ disk_usage.stdout }}
-          
-          Installed Packages:
-          {{ installed_packages.stdout }}
-        dest: /tmp/result1.txt
-      delegate_to: localhost
+        module: lineinfile
+        #path: /etc/ansible/playbooks/highest_disk_utilized/result1.log
+        path: /root/snap/semaphore/common/repositories/repository_4_4/TaskPlaybook/result.log
+        line: "Top 5 servers with highest disk usage: {{ top_5_servers | to_nice_yaml }}"
+        create: yes
+      run_once: true
+
+    - name: Display top 5 servers with highest disk usage
+      debug:
+        msg: "Top 5 servers with highest disk usage: {{ top_5_servers }}"
+      run_once: true
