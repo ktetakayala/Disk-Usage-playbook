@@ -1,0 +1,61 @@
+---
+- name: Fetch System Configurations and Installed Software
+  hosts: vm
+  vars_files:
+    - vars.yml
+  tasks:
+    - name: Get Python version
+      shell: python3 --version
+      register: python_version
+
+    - name: Get hostname
+      command: hostname
+      register: server_hostname
+
+    - name: Get IP address of the remote server
+      shell: hostname -I | awk '{print $1}'
+      register: server_ip_address
+
+    - name: Get operating system details
+      command: cat /etc/os-release
+      register: os_details
+
+    - name: Get CPU information
+      shell: lscpu
+      register: cpu_info
+
+    - name: Get memory information
+      shell: free -h
+      register: memory_info
+
+    - name: Get disk usage
+      shell: df -h
+      register: disk_usage
+
+    - name: Get list of installed packages
+      shell: dpkg -l
+      register: installed_packages
+
+    - name: Save results to a file on local server
+      local_action:
+        module: copy
+        content: |
+          Python Version: {{ python_version.stdout }}
+          Hostname: {{ server_hostname.stdout }}
+          IP Address: {{ server_ip_address.stdout }}
+          OS Details: 
+          {{ os_details.stdout }}
+          
+          CPU Information:
+          {{ cpu_info.stdout }}
+          
+          Memory Information:
+          {{ memory_info.stdout }}
+          
+          Disk Usage:
+          {{ disk_usage.stdout }}
+          
+          Installed Packages:
+          {{ installed_packages.stdout }}
+        dest: /tmp/result1.txt
+      delegate_to: localhost
